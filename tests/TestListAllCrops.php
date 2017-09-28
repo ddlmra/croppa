@@ -8,6 +8,10 @@ class TestListAllCrops extends TestCase {
 
 	public function setUp() {
 
+	    $url= new URL([
+
+        ]);
+
 		// Mock src dir
 		$this->src_dir = Mockery::mock('League\Flysystem\Filesystem')
 			->shouldReceive('has')->with('01/me.jpg')->andReturn(true)
@@ -36,10 +40,14 @@ class TestListAllCrops extends TestCase {
 				])
 			->getMock();
 
+		$this->app = ['Bkwld\Croppa\URL' => $url];
 	}
 
 	public function testAll() {
-		$storage = new Storage();
+        $url= new URL();
+	    $app = ['Bkwld\Croppa\URL' => $url];
+
+		$storage = new Storage($app);
 		$storage->setSrcDisk($this->src_dir);
 		$storage->setCropsDisk($this->crops_dir);
 		$this->assertEquals([
@@ -50,8 +58,38 @@ class TestListAllCrops extends TestCase {
 		], $storage->listAllCrops());
 	}
 
+    public function testAllWithStyles() {
+        $url = new URL(['styles' => ['small' => ['width' => 300]]]);
+        $app = ['Bkwld\Croppa\URL' => $url];
+
+        $storage = new Storage($app);
+        $storage->setSrcDisk($this->src_dir);
+        $storage->setCropsDisk($this->crops_dir);
+        $this->assertEquals([
+            '01/me-too.jpg',
+            '01/me-200x100.jpg',
+            '01/me-200x200.jpg',
+            '01/me-200x300.jpg',
+            '02/another-200x300.jpg',
+        ], $storage->listAllCrops());
+    }
+
+    public function testAllWithStylesOnly() {
+        $url = new URL([
+            'styles_only' => true,
+            'styles' => ['small' => ['width' => 300]]]);
+        $app = ['Bkwld\Croppa\URL' => $url];
+
+        $storage = new Storage($app);
+        $storage->setSrcDisk($this->src_dir);
+        $storage->setCropsDisk($this->crops_dir);
+        $this->assertEquals([
+            '01/me-too.jpg',
+        ], $storage->listAllCrops());
+    }
+
 	public function testFiltered() {
-		$storage = new Storage();
+		$storage = new Storage($this->app);
 		$storage->setSrcDisk($this->src_dir);
 		$storage->setCropsDisk($this->crops_dir);
 		$this->assertEquals([

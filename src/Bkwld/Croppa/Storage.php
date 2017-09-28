@@ -32,6 +32,11 @@ class Storage {
     private $src_disk;
 
     /**
+     * @var string
+     */
+    private $pattern;
+
+    /**
      * Inject dependencies
      *
      * @param Illuminate\Container\Container
@@ -40,6 +45,8 @@ class Storage {
     public function __construct($app = null, $config = null) {
         $this->app = $app;
         $this->config = $config;
+        $url = isset($app['Bkwld\Croppa\URL']) ? $app['Bkwld\Croppa\URL'] : new URL();
+        $this->pattern = $url->getPattern();
     }
 
     /**
@@ -56,47 +63,19 @@ class Storage {
     /**
      * Set the crops disk
      *
-     * @param  League\Flysystem\Filesystem
-     *         League\Flysystem\Cached\CachedAdapter
+     * @param League\Flysystem\Filesystem | League\Flysystem\Cached\CachedAdapter
      */
     public function setCropsDisk($disk) {
         $this->crops_disk = $disk;
     }
 
     /**
-     * Get the crops disk or make via the config
-     *
-     * @return League\Flysystem\Filesystem
-     *         League\Flysystem\Cached\CachedAdapter
-     */
-    public function getCropsDisk() {
-        if (empty($this->crops_disk)) {
-            $this->setCropsDisk($this->makeDisk($this->config['crops_dir']));
-        }
-        return $this->crops_disk;
-    }
-
-    /**
      * Set the src disk
      *
-     * @param  League\Flysystem\Filesystem
-     *         League\Flysystem\Cached\CachedAdapter
+     * @param League\Flysystem\Filesystem | League\Flysystem\Cached\CachedAdapter
      */
     public function setSrcDisk($disk) {
         $this->src_disk = $disk;
-    }
-
-    /**
-     * Get the src disk or make via the config
-     *
-     * @return League\Flysystem\Filesystem
-     *         League\Flysystem\Cached\CachedAdapter
-     */
-    public function getSrcDisk() {
-        if (empty($this->src_disk)) {
-            $this->setSrcDisk($this->makeDisk($this->config['src_dir']));
-        }
-        return $this->src_disk;
     }
 
     /**
@@ -135,7 +114,7 @@ class Storage {
      * @return boolean
      */
     public function cropsAreRemote() {
-        $adapter = $this->getCropsDisk()->getAdapter();
+        $adapter = $this->crops_disk->getAdapter();
 
         // If using a cached adapter, get the actual adapter that is being cached.
         if (is_a($adapter, 'League\Flysystem\Cached\CachedAdapter')) {
@@ -153,7 +132,7 @@ class Storage {
      * @return boolean
      */
     public function cropExists($path) {
-        return $this->getCropsDisk()->has($path);
+        return $this->crops_disk->has($path);
     }
 
     /**
@@ -164,8 +143,7 @@ class Storage {
      * @return string
      */
     public function readSrc($path) {
-        $disk = $this->getSrcDisk();
-        if ($disk->has($path)) return $disk->read($path);
+        if ($this->src_disk->has($path)) return $this->src_disk->read($path);
         else throw new NotFoundHttpException('Croppa: Src image is missing');
     }
 
@@ -179,7 +157,7 @@ class Storage {
      */
     public function writeCrop($path, $contents) {
         try {
-            $this->getCropsDisk()->write($path, $contents);
+            $this->crops_disk->write($path, $contents);
         } catch(FileExistsException $e) {
             throw new Exception("Croppa: Crop already exists at $path. You probably
                 have a misconfiguration. Make sure that the URL to your crop can be
@@ -194,7 +172,7 @@ class Storage {
      * @return string
      */
     public function getLocalCropsDirPath() {
-        return $this->getCropsDisk()->getAdapter()->getPathPrefix();
+        return $this->crops_disk->getAdapter()->getPathPrefix();
     }
 
     /**
@@ -203,7 +181,7 @@ class Storage {
      * @param string $path Path to src image
      */
     public function deleteSrc($path) {
-        $this->getSrcDisk()->delete($path);
+        $this->src_disk->delete($path);
     }
 
     /**
@@ -214,8 +192,7 @@ class Storage {
      */
     public function deleteCrops($path) {
         $crops = $this->listCrops($path);
-        $disk = $this->getCropsDisk();
-        foreach($crops as $crop) $disk->delete($crop);
+        foreach($crops as $crop) $this->crops_disk->delete($crop);
         return $crops;
     }
 
@@ -228,8 +205,7 @@ class Storage {
      */
     public function deleteAllCrops($filter = null, $dry_run = false) {
         $crops = $this->listAllCrops($filter);
-        $disk = $this->getCropsDisk();
-        if (!$dry_run) foreach($crops as $crop) $disk->delete($crop);
+        if (!$dry_run) foreach($crops as $crop) $this->crops_disk->delete($crop);
         return $crops;
     }
 
@@ -259,7 +235,7 @@ class Storage {
         if ($dir === '.') $dir = ''; // Flysystem doesn't like "." for the dir
 
         // Filter the files in the dir to just crops of the image path
-        return $this->justPaths(array_filter($this->getCropsDisk()->listContents($dir),
+        return $this->justPaths(array_filter($this->crops_disk->listContents($dir),
             function($file) use ($filename) {
 
             // Don't return the source image, we're JUST getting crops
@@ -270,7 +246,7 @@ class Storage {
             && strpos($file['basename'], pathinfo($filename, PATHINFO_FILENAME)) === 0
 
             // Make sure that the crop matches that Croppa file regex
-            && preg_match('#'.URL::PATTERN.'#', $file['path']);
+            && preg_match('#'.$this->pattern.'#', $file['path']);
         }));
     }
 
@@ -282,7 +258,7 @@ class Storage {
      * @return array
      */
     public function listAllCrops($filter = null) {
-        return $this->justPaths(array_filter($this->getCropsDisk()->listContents(null, true),
+        return $this->justPaths(array_filter($this->crops_disk->listContents(null, true),
             function($file) use ($filter) {
 
             // If there was a filter, force it to match
@@ -290,11 +266,11 @@ class Storage {
 
             // Check that the file matches the pattern and get at the parts to make to
             // make the path to the src
-            if (!preg_match('#'.URL::PATTERN.'#', $file['path'], $matches)) return false;
-            $src = $matches[1].'.'.$matches[5];
+            if (!preg_match('#'.$this->pattern.'#', $file['path'], $matches)) return false;
+            $src = $matches['url'].'.'.$matches['type'];
 
             // Test that the src file exists
-            return $this->getSrcDisk()->has($src);
+            return $this->src_disk->has($src);
         }));
     }
 

@@ -82,6 +82,22 @@ class Helpers {
         return $this->url->generate($url, $width, $height, $options);
     }
 
+    /**
+     * Generate a crop URL using styles names instead of parameter
+     *
+     * @param string $url URL of an image that should be cropped
+     * @param string|array $style style name (or array of names) that should be used
+     * @param bool $explode whether to use the style as name or as a template
+     * @return string The new path to your thumbnail
+     * @see Bkwld\Croppa\URL::generate()
+     */
+    public function styleUrl($url, $style, $explode = false) {
+        if ($explode) {
+            $template = $this->url->getStyle($style);
+            return $this->url->generate($url, $template['width'], $template['height'], $template['options']);
+        }
+        return $this->url->generate($url, $style);
+    }
 
     /**
      * Render image
@@ -93,5 +109,4 @@ class Helpers {
     public function render($url) {
         return $this->handler->render($url);
     }
-
 }

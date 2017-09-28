@@ -1,11 +1,48 @@
 <?php
 
+use Bkwld\Croppa\Helpers;
+use Bkwld\Croppa\Storage;
 use Bkwld\Croppa\URL;
 use PHPUnit\Framework\TestCase;
 
 class TestUrlGenerator extends TestCase {
 
-	public function testWidthAndHeight() {
+    private function mockHelpers() {
+
+        $url = new URL([
+            'styles_delimiters' => ['-(', ')'],
+            'styles' => [
+                'small' => [
+                    'height'  => 200,
+                    'options' => [
+                        'quadrant' => ['T', 'R'],
+                        'filters'  => [
+                            'gray',
+                        ],
+                        'quality'  => 80,
+                    ],
+                ],
+                'thumb' => [
+                    'options' => [
+                        'quadrant' => ['C'],
+                        'quality'  => 50,
+                        'filters'  => [
+                            'blur',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $storage = new Storage();
+
+        $handler = Mockery::mock('Bkwld\Croppa\Handler');
+
+        return new Helpers($url, $storage, $handler);
+
+    }
+
+    public function testWidthAndHeight() {
 		$url = new URL();
 		$this->assertEquals('/path/file-200x100.png', $url->generate('/path/file.png', 200, 100));
 	}
@@ -91,4 +128,14 @@ class TestUrlGenerator extends TestCase {
 
 	}
 
+    public function testStyles() {
+        $helpers = $this->mockHelpers();
+        $this->assertEquals('/path/file-(small).png', $helpers->url('/path/file.png', 'small'));
+        $this->assertEquals('/path/file-(thumb+small+test).png', $helpers->styleUrl('/path/file.png', ['thumb', 'small', 'test']));
+    }
+
+    public function testStylesAsTemplate() {
+        $helpers = $this->mockHelpers();
+        $this->assertEquals('/path/file-_x200-quadrant(C)-filters(gray,blur)-quality(50).png', $helpers->styleUrl('/path/file.png', ['small', 'thumb'], true));
+    }
 }

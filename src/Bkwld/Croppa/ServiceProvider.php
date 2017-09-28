@@ -40,7 +40,7 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider {
             return new URL($this->getConfig());
         });
 
-        // Handle the request for an image, this cooridnates the main logic
+        // Handle the request for an image, this coordinates the main logic
         $this->app->singleton('Bkwld\Croppa\Handler', function($app) {
             return new Handler($app['Bkwld\Croppa\URL'],
                 $app['Bkwld\Croppa\Storage'],
@@ -50,7 +50,7 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider {
 
         // Interact with the disk
         $this->app->singleton('Bkwld\Croppa\Storage', function($app) {
-            return new Storage($app, $this->getConfig());
+            return Storage::make($app, $this->getConfig());
         });
 
         // API for use in apps
@@ -58,13 +58,23 @@ class ServiceProvider extends \Illuminate\Support\ServiceProvider {
             return new Helpers($app['Bkwld\Croppa\URL'], $app['Bkwld\Croppa\Storage'], $app['Bkwld\Croppa\Handler']);
         });
 
-        // Register command to delte all crops
+        // Register command to delete all crops
         $this->app->singleton('Bkwld\Croppa\Commands\Purge', function($app) {
             return new Commands\Purge($app['Bkwld\Croppa\Storage']);
+        });
+        // Register command to list crops styles
+        $this->app->singleton('Bkwld\Croppa\Commands\Styles', function($app) {
+            return new Commands\Styles($this->getConfig());
+        });
+        // Register command to test crops styles
+        $this->app->singleton('Bkwld\Croppa\Commands\Test', function($app) {
+            return new Commands\Test($this->getConfig(), $app['Bkwld\Croppa\URL']);
         });
 
         // Register all commadns
         $this->commands('Bkwld\Croppa\Commands\Purge');
+        $this->commands('Bkwld\Croppa\Commands\Styles');
+        $this->commands('Bkwld\Croppa\Commands\Test');
     }
 
     /**
